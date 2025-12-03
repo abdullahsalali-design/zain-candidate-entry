@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Zain Candidate Entry System</title>
+
+  <!-- Tailwind + React + Babel -->
+  <script>
+  tailwind = {
+    config: {
+      darkMode: "class",
+    }
+  }
+</script>
+<script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- SheetJS for Excel export -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+
+<body class="transition-colors duration-300 bg-[#F5F5F5] dark:bg-[#0F1124]">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useMemo } = React;
+
+    const STORAGE_KEY = "zain_candidates_v1";
+    const THEME_KEY = "zain_theme";
+
+    const timeNow = () => new Date().toLocaleString();
+
+    function loadInitialCandidates() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed;
+      } catch (e) {
+        console.error("Failed to load candidates from storage", e);
+        return [];
+      }
+    }
+
+    function saveCandidates(candidates) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(candidates));
+      } catch (e) {
+        console.error("Failed to save candidates", e);
+      }
+    }
+
+    function Header({ role, setRole, theme, toggleTheme, visitorMode = false }) {
+      return (
+        <header className="bg-gradient-to-r from-[#281F51] to-[#AB1368] dark:from-[#1B0F2B] dark:to-[#3A1A46] text-white shadow-lg border-b-4 border-[#C3D534]">
+          <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <img
+                src="logo.png"
+                alt="Zain Logo"
+                className="h-16 w-16 drop-shadow-md dark:invert dark:brightness-200 transition duration-300"
+              />
+              <div>
+                <div className="font-bold text-lg">Zain Kuwait</div>
+                <div className="text-xs opacity-90">
+                  {visitorMode ? "Visitor Pass" : "Recruitment Access Portal"}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 sm:gap-3">
+              {!visitorMode && (
+                <>
+                  <select
+                    className="p-2 text-xs sm:text-sm border rounded-lg text-black"
+                    value={role}
+                    onChange={(e) => setRole(e.target.value)}
+                  >
+                    <option value="hr">HR Dashboard</option>
+                    <option value="security">Security Kiosk</option>
+                    <option value="candidate">Candidate Pass</option>
+                  </select>
+                  <div className="hidden sm:block text-[11px] opacity-90">
+                    {timeNow()}
+                  </div>
+                </>
+              )}
+              <button
+                onClick={toggleTheme}
+                className="ml-1 p-2 rounded-full text-lg hover:bg-white/15 transition-colors"
+                title={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
+              >
+                {theme === "light" ? "🌙" : "☀️"}
+              </button>
+            </div>
+          </div>
+        </header>
+      );
+    }
+
+    function StatusPill({ status }) {
+      let classes = "bg-gray-200 text-gray-800 dark:bg-slate-600 dark:text-white";
+      if (status === "Not arrived") classes = "bg-gray-200 text-gray-800 dark:bg-slate-600 dark:text-white";
+      if (status === "Arrived") classes = "bg-[#F6EB69] text-black";
+      if (status === "Checked In") classes = "bg-[#23AEB7] text-[#281F51]";
+      if (status === "Completed") classes = "bg-[#034146] text-white";
+      return (
+        <span className={"inline-block px-2 py-1 rounded-full text-xs " + classes}>
+          {status || "Not arrived"}
+        </span>
+      );
+    }
+
+    function StatusTimeline({ status }) {
+      const steps = ["Not arrived", "Arrived", "Checked In", "Completed"];
+      const currentIndex = steps.indexOf(status);
+      return (
+        <div className="mt-4">
+          <div className="flex justify-between text-[11px] text-gray-600 dark:text-gray-300 mb-1">
+            {steps.map((s) => (
+              <span key={s}>{s}</span>
+            ))}
+          </div>
+          <div className="flex items-center justify-between gap-1">
+            {steps.map((s, idx) => {
+              const active = idx <= currentIndex;
+              return (
+                <div key={s} className="flex-1 flex items-center">
+                  <div
+                    className={
+                      "h-2 w-full rounded-full transition-all " +
+                      (active ? "bg-[#C3D534]" : "bg-gray-200 dark:bg-slate-700")
+                    }
+                  ></div>
+                  {idx < steps.length - 1 && <div className="w-1" />}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    function buildPassUrl(candidate) {
+      try {
+        const base = window.location.origin + window.location.pathname;
+        const payload = encodeURIComponent(JSON.stringify(candidate));
+        const url = base.replace(/\/+$/, "") + "?vp=" + payload;
+        return url;
+      } catch {
+        return "";
+      }
+    }
+
+    function CandidateQR({ candidate }) {
+      if (!candidate) return null;
+      const passUrl = buildPassUrl(candidate);
+      const data = encodeURIComponent(passUrl || "");
+      const url = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${data}`;
+      return (
+        <div className="mt-4 flex flex-col items-center gap-1">
+          <div className="p-2 rounded-2xl bg-white dark:bg-slate-900 shadow border border-[#C3D534]/60">
+            <img
+              src={url}
+              alt="Candidate QR"
+              className="w-32 h-32 rounded-xl"
+            />
+          </div>
+          <div className="text-[11px] text-gray-600 dark:text-gray-200 text-center">
+            Scan to open visitor pass
+            <br />
+            <span className="font-medium">{candidate.id}</span>
+          </div>
+        </div>
+      );
+    }
+
+    function CandidatePassCard({ candidate }) {
+      if (!candidate) {
+        return (
+          <div className= bg-[#F5F5F5] dark:bg-[#0F1124] transition-colors duration-300"p-6 text-center text-gray-600 dark:text-gray-300">
+            No candidate selected.
+          </div>
+        );
+      }
+
+      return (
+        <div className="w-full max-w-md bg-white dark:bg-[#1A1D33] p-6 rounded-2xl shadow-xl border-t-4 border-[#AB1368]">
+          <div className="text-xs text-gray-600 dark:text-gray-300">
+            Visitor Pass
+          </div>
+          <div className="text-2xl font-bold text-black dark:text-white mt-1">
+            {candidate.name}
+          </div>
+          <div className="text-sm text-gray-600 dark:text-gray-300">
+            {candidate.position}
+          </div>
+
+          <div className="mt-3 text-xs text-gray-700 dark:text-gray-200 space-y-1">
+            <div>
+              Interviewer:{" "}
+              <span className="font-medium">{candidate.interviewer}</span>
+            </div>
+            <div>
+              Time:{" "}
+              <span className="font-medium">
+                {candidate.interviewTime
+                  ? new Date(candidate.interviewTime).toLocaleString()
+                  : "-"}
+              </span>
+            </div>
+          </div>
+
+          <div className="mt-3">
+            <StatusPill status={candidate.status} />
+          </div>
+
+          <CandidateQR candidate={candidate} />
+          <StatusTimeline status={candidate.status} />
+        </div>
+      );
+    }
+
+    function CandidatePass({ candidate }) {
+      return (
+        <div className="flex justify-center p-6">
+          <CandidatePassCard candidate={candidate} />
+        </div>
+      );
+    }
+
+    function CandidateView({ candidates, selected, setSelected }) {
+      return (
+        <div className= bg-[#F5F5F5] dark:bg-[#0F1124] transition-colors duration-300"p-6">
+          <h2 className="text-xl font-bold text-[#AB1368]">Candidate Viewer</h2>
+
+          {candidates.length === 0 && (
+            <div className="text-gray-600 dark:text-gray-300 mt-4">
+              No candidates available.
+            </div>
+          )}
+
+          {candidates.length > 0 && (
+            <>
+              <select
+                className="p-2 border rounded mt-4 bg-white dark:bg-[#1A1D33] text-gray-800 dark:text-gray-100"
+                value={selected ? selected.id : ""}
+                onChange={(e) => {
+                  const c = candidates.find((x) => x.id === e.target.value);
+                  setSelected(c || null);
+                }}
+              >
+                <option value="">Select Candidate</option>
+                {candidates.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} — {c.position}
+                  </option>
+                ))}
+              </select>
+
+              <CandidatePass candidate={selected} />
+            </>
+          )}
+        </div>
+      );
+    }
+
+    function HRDashboard({
+      candidates,
+      addCandidate,
+      deleteCandidate,
+      updateCandidate,
+      setSelected,
+    }) {
+      const [form, setForm] = useState({
+        name: "",
+        phone: "",
+        idNumber: "",
+        position: "",
+        interviewer: "",
+        time: "",
+      });
+
+      const [editing, setEditing] = useState(null);
+      const [search, setSearch] = useState("");
+      const [sortBy, setSortBy] = useState("time_desc");
+
+      const counts = useMemo(() => {
+        const base = {
+          total: candidates.length,
+          notArrived: 0,
+          arrived: 0,
+          checkedIn: 0,
+          completed: 0,
+        };
+        for (const c of candidates) {
+          const s = c.status || "Not arrived";
+          if (s === "Not arrived") base.notArrived++;
+          else if (s === "Arrived") base.arrived++;
+          else if (s === "Checked In") base.checkedIn++;
+          else if (s === "Completed") base.completed++;
+        }
+        return base;
+      }, [candidates]);
+
+      const filteredSorted = useMemo(() => {
+        let list = [...candidates];
+        if (search.trim()) {
+          const q = search.toLowerCase();
+          list = list.filter((c) => {
+            return (
+              (c.name || "").toLowerCase().includes(q) ||
+              (c.position || "").toLowerCase().includes(q) ||
+              (c.interviewer || "").toLowerCase().includes(q) ||
+              (c.status || "").toLowerCase().includes(q)
+            );
+          });
+        }
+        list.sort((a, b) => {
+          if (sortBy === "name_asc") {
+            return (a.name || "").localeCompare(b.name || "");
+          }
+          if (sortBy === "name_desc") {
+            return (b.name || "").localeCompare(a.name || "");
+          }
+          if (sortBy === "time_asc") {
+            return (a.interviewTime || "").localeCompare(b.interviewTime || "");
+          }
+          if (sortBy === "time_desc") {
+            return (b.interviewTime || "").localeCompare(a.interviewTime || "");
+          }
+          return 0;
+        });
+        return list;
+      }, [candidates, search, sortBy]);
+
+      const onCreate = () => {
+        if (!form.name || !form.time) return alert("Missing required fields.");
+
+        const newCandidate = {
+          id: "C-" + Math.floor(Math.random() * 900000 + 100000),
+          ...form,
+          interviewTime: new Date(form.time).toISOString(),
+          status: "Not arrived",
+        };
+
+        addCandidate(newCandidate);
+        setSelected(newCandidate);
+
+        setForm({
+          name: "",
+          phone: "",
+          idNumber: "",
+          position: "",
+          interviewer: "",
+          time: "",
+        });
+      };
+
+      const openEdit = (candidate) => {
+        setEditing({ ...candidate });
+      };
+
+      const closeEdit = () => setEditing(null);
+
+      const saveEdit = () => {
+        if (!editing) return;
+        updateCandidate(editing);
+        setEditing(null);
+      };
+
+      const setStatus = (status) => {
+        if (!editing) return;
+        setEditing({ ...editing, status });
+      };
+
+      const handleExportExcel = () => {
+        if (typeof XLSX === "undefined") {
+          alert("Excel library not loaded. Please check your internet connection.");
+          return;
+        }
+        const data = candidates.map((c) => ({
+          ID: c.id,
+          Name: c.name,
+          Phone: c.phone,
+          ID_Number: c.idNumber,
+          Position: c.position,
+          Interviewer: c.interviewer,
+          Interview_Time: c.interviewTime
+            ? new Date(c.interviewTime).toLocaleString()
+            : "",
+          Status: c.status,
+        }));
+        const worksheet = XLSX.utils.json_to_sheet(data);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Candidates");
+        XLSX.writeFile(workbook, "candidates.xlsx");
+      };
+
+      return (
+        <div className= bg-[#F5F5F5] dark:bg-[#0F1124] transition-colors duration-300"p-6 space-y-4 text-gray-800 dark:text-gray-100">
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <h2 className="text-xl font-bold text-[#AB1368]">HR Dashboard</h2>
+              <div className="flex flex-wrap gap-2 text-xs sm:text-sm items-center">
+                <input
+                  type="text"
+                  placeholder="Search by name, position, interviewer, status"
+                  className="px-2 py-1 border rounded w-48 sm:w-72 text-xs sm:text-sm bg-white dark:bg-[#1A1D33] text-gray-800 dark:text-gray-100"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+                <select
+                  className="px-2 py-1 border rounded text-xs sm:text-sm bg-white dark:bg-[#1A1D33] text-gray-800 dark:text-gray-100"
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                >
+                  <option value="time_desc">Sort: Time (newest)</option>
+                  <option value="time_asc">Sort: Time (oldest)</option>
+                  <option value="name_asc">Sort: Name (A-Z)</option>
+                  <option value="name_desc">Sort: Name (Z-A)</option>
+                </select>
+                <button
+                  className="px-3 py-1 border rounded text-xs sm:text-sm bg-white dark:bg-[#1A1D33] hover:bg-[#C3D534]/20 dark:hover:bg-[#C3D534]/20"
+                  onClick={handleExportExcel}
+                >
+                  Export Excel
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-xs sm:text-sm">
+              <div className="flex items-center gap-2 bg-white dark:bg-[#1A1D33] rounded-xl shadow p-3 border-l-4 border-[#281F51]">
+                <div className="text-2xl">🕒</div>
+                <div>
+                  <div className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-300">
+                    Not Arrived
+                  </div>
+                  <div className="text-lg font-bold">{counts.notArrived}</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 bg-white dark:bg-[#1A1D33] rounded-xl shadow p-3 border-l-4 border-[#F6EB69]">
+                <div className="text-2xl">🟡</div>
+                <div>
+                  <div className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-300">
+                    Arrived
+                  </div>
+                  <div className="text-lg font-bold">{counts.arrived}</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 bg-white dark:bg-[#1A1D33] rounded-xl shadow p-3 border-l-4 border-[#23AEB7]">
+                <div className="text-2xl">🔵</div>
+                <div>
+                  <div className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-300">
+                    Checked In
+                  </div>
+                  <div className="text-lg font-bold">{counts.checkedIn}</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 bg-white dark:bg-[#1A1D33] rounded-xl shadow p-3 border-l-4 border-[#034146]">
+                <div className="text-2xl">🟢</div>
+                <div>
+                  <div className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-300">
+                    Completed
+                  </div>
+                  <div className="text-lg font-bold">{counts.completed}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="lg:col-span-2 bg-white dark:bg-[#1A1D33] p-4 rounded-xl shadow border border-[#281F51]/10">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <input
+                  className="p-2 border rounded bg-white dark:bg-slate-900 text-gray-800 dark:text-gray-100"
+                  placeholder="Full name"
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                />
+
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  className="p-2 border rounded bg-white dark:bg-slate-900 text-gray-800 dark:text-gray-100"
+                  placeholder="Phone"
+                  value={form.phone}
+                  onChange={(e) => {
+                    const digits = e.target.value.replace(/[^0-9]/g, "");
+                    setForm({ ...form, phone: digits });
+                  }}
+                />
+
+                <input
+                  className="p-2 border rounded bg-white dark:bg-slate-900 text-gray-800 dark:text-gray-100"
+                  placeholder="ID number"
+                  value={form.idNumber}
+                  onChange={(e) =>
+                    setForm({ ...form, idNumber: e.target.value })
+                  }
+                />
+
+                <input
+                  className="p-2 border rounded bg-white dark:bg-slate-900 text-gray-800 dark:text-gray-100"
+                  placeholder="Position"
+                  value={form.position}
+                  onChange={(e) =>
+                    setForm({ ...form, position: e.target.value })
+                  }
+                />
+
+                <input
+                  className="p-2 border rounded bg-white dark:bg-slate-900 text-gray-800 dark:text-gray-100"
+                  placeholder="Interviewer"
+                  value={form.interviewer}
+                  onChange={(e) =>
+                    setForm({ ...form, interviewer: e.target.value })
+                  }
+                />
+
+                <input
+                  type="datetime-local"
+                  className="p-2 border rounded bg-white dark:bg-slate-900 text-gray-800 dark:text-gray-100"
+                  value={form.time}
+                  onChange={(e) => setForm({ ...form, time: e.target.value })}
+                />
+              </div>
+
+              <button
+                className="mt-4 px-4 py-2 bg-[#AB1368] text-white rounded shadow hover:bg-[#8c0f55] transition"
+                onClick={onCreate}
+              >
+                Create Candidate
+              </button>
+            </div>
+
+            <div className="bg-white dark:bg-[#1A1D33] p-4 rounded-xl shadow max-h-80 overflow-auto border border-[#281F51]/10">
+              <div className="font-bold text-[#AB1368] mb-2">All Candidates</div>
+
+              {filteredSorted.map((c) => (
+                <div
+                  key={c.id}
+                  className="border border-gray-200 dark:border-slate-700 p-2 rounded mb-2 text-sm flex justify-between gap-2 items-start"
+                >
+                  <div>
+                    <div className="font-medium">{c.name}</div>
+                    <div className="text-gray-600 dark:text-gray-300 text-xs">
+                      {c.position}
+                    </div>
+                    <div className="mt-1">
+                      <StatusPill status={c.status} />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <button
+                      className="text-xs px-2 py-1 border rounded hover:bg-[#C3D534]/20 dark:hover:bg-[#C3D534]/20"
+                      onClick={() => openEdit(c)}
+                    >
+                      View
+                    </button>
+                    <button
+                      className="text-red-500 text-xs border px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-500/20"
+                      onClick={() => deleteCandidate(c.id)}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+              {filteredSorted.length === 0 && (
+                <div className="text-xs text-gray-600 dark:text-gray-300 mt-2">
+                  No candidates match your search.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {editing && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+              <div className="bg-white dark:bg-[#0F1124] rounded-xl shadow-lg p-4 w-full max-w-md text-gray-800 dark:text-gray-100">
+                <h3 className="text-lg font-bold text-[#AB1368] mb-3">
+                  Candidate Details
+                </h3>
+
+                <div className="space-y-2 text-sm">
+                  <div>
+                    <label className="block text-xs text-gray-600 dark:text-gray-300">
+                      Full Name
+                    </label>
+                    <input
+                      className="w-full p-2 border rounded text-sm bg-white dark:bg-slate-900 text-gray-800 dark:text-gray-100"
+                      value={editing.name}
+                      onChange={(e) =>
+                        setEditing({ ...editing, name: e.target.value })
+                      }
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs text-gray-600 dark:text-gray-300">
+                        Phone
+                      </label>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        className="w-full p-2 border rounded text-sm bg-white dark:bg-slate-900 text-gray-800 dark:text-gray-100"
+                        value={editing.phone}
+                        onChange={(e) => {
+                          const digits = e.target.value.replace(/[^0-9]/g, "");
+                          setEditing({ ...editing, phone: digits });
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 dark:text-gray-300">
+                        ID Number
+                      </label>
+                      <input
+                        className="w-full p-2 border rounded text-sm bg-white dark:bg-slate-900 text-gray-800 dark:text-gray-100"
+                        value={editing.idNumber}
+                        onChange={(e) =>
+                          setEditing({
+                            ...editing,
+                            idNumber: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-gray-600 dark:text-gray-300">
+                      Position
+                    </label>
+                    <input
+                      className="w-full p-2 border rounded text-sm bg-white dark:bg-slate-900 text-gray-800 dark:text-gray-100"
+                      value={editing.position}
+                      onChange={(e) =>
+                        setEditing({ ...editing, position: e.target.value })
+                      }
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-gray-600 dark:text-gray-300">
+                      Interviewer
+                    </label>
+                    <input
+                      className="w-full p-2 border rounded text-sm bg-white dark:bg-slate-900 text-gray-800 dark:text-gray-100"
+                      value={editing.interviewer}
+                      onChange={(e) =>
+                        setEditing({
+                          ...editing,
+                          interviewer: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-gray-600 dark:text-gray-300">
+                      Interview Time (ISO or readable)
+                    </label>
+                    <input
+                      className="w-full p-2 border rounded text-sm bg-white dark:bg-slate-900 text-gray-800 dark:text-gray-100"
+                      value={editing.interviewTime || ""}
+                      onChange={(e) =>
+                        setEditing({
+                          ...editing,
+                          interviewTime: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">
+                      Status
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {["Not arrived", "Arrived", "Checked In", "Completed"].map(
+                        (status) => (
+                          <button
+                            key={status}
+                            type="button"
+                            onClick={() => setStatus(status)}
+                            className={
+                              "px-2 py-1 text-xs rounded border " +
+                              (editing.status === status
+                                ? "bg-[#AB1368] text-white border-[#AB1368]"
+                                : "bg-white dark:bg-slate-900 border-gray-300 dark:border-slate-600")
+                            }
+                          >
+                            {status}
+                          </button>
+                        )
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex justify-end gap-2">
+                  <button
+                    className="px-3 py-1 text-xs border rounded bg-white dark:bg-slate-900"
+                    onClick={closeEdit}
+                  >
+                    Close
+                  </button>
+                  <button
+                    className="px-3 py-1 text-xs bg-[#AB1368] text-white rounded"
+                    onClick={saveEdit}
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function isToday(dateStr) {
+      if (!dateStr) return false;
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return false;
+      const today = new Date();
+      return (
+        d.getFullYear() === today.getFullYear() &&
+        d.getMonth() === today.getMonth() &&
+        d.getDate() === today.getDate()
+      );
+    }
+
+    function SecurityKiosk({
+      candidates,
+      markArrived,
+      markCheckedIn,
+      markCompleted,
+    }) {
+      const [filter, setFilter] = useState("today");
+
+      const filtered = useMemo(() => {
+        return candidates.filter((c) => {
+          const status = c.status || "Not arrived";
+          if (filter === "today") {
+            return isToday(c.interviewTime);
+          }
+          if (filter === "all") return true;
+          if (filter === "not_arrived") return status === "Not arrived";
+          if (filter === "arrived") return status === "Arrived";
+          if (filter === "checked_in") return status === "Checked In";
+          if (filter === "completed") return status === "Completed";
+          return true;
+        });
+      }, [candidates, filter]);
+
+      return (
+        <div className= bg-[#F5F5F5] dark:bg-[#0F1124] transition-colors duration-300"p-6 space-y-4 text-gray-800 dark:text-gray-100">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <h2 className="text-xl font-bold text-[#AB1368]">Security Kiosk</h2>
+            <div className="flex flex-wrap gap-2 text-xs sm:text-sm items-center">
+              <span className="text-gray-700 dark:text-gray-200 text-xs">Filter:</span>
+              <select
+                className="px-2 py-1 border rounded text-xs sm:text-sm bg-white dark:bg-[#1A1D33] text-gray-800 dark:text-gray-100"
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+              >
+                <option value="today">Today</option>
+                <option value="all">All</option>
+                <option value="not_arrived">Not arrived</option>
+                <option value="arrived">Arrived</option>
+                <option value="checked_in">Checked In</option>
+                <option value="completed">Completed</option>
+              </select>
+            </div>
+          </div>
+
+          {filtered.length === 0 && (
+            <div className="text-gray-600 dark:text-gray-300 text-sm">
+              No candidates match this filter.
+            </div>
+          )}
+
+          {filtered.map((c) => (
+            <div
+              key={c.id}
+              className="p-3 bg-white dark:bg-[#1A1D33] border-l-4 border-[#AB1368] rounded shadow mb-3"
+            >
+              <div className="flex justify-between items-start gap-3">
+                <div>
+                  <div className="font-bold">{c.name}</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-300">
+                    {c.position}
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    {c.interviewTime
+                      ? new Date(c.interviewTime).toLocaleString()
+                      : "-"}
+                  </div>
+                  <div className="mt-1">
+                    <StatusPill status={c.status} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-2 mt-3 flex-wrap">
+                <button
+                  className="px-3 py-1 bg-[#F6EB69] rounded text-xs text-black"
+                  onClick={() => markArrived(c.id)}
+                >
+                  Arrived
+                </button>
+                <button
+                  className="px-3 py-1 bg-[#23AEB7] text-white rounded text-xs"
+                  onClick={() => markCheckedIn(c.id)}
+                >
+                  Check In
+                </button>
+                <button
+                  className="px-3 py-1 bg-[#034146] text-white rounded text-xs"
+                  onClick={() => markCompleted(c.id)}
+                >
+                  Completed
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    function App() {
+      const [theme, setTheme] = useState(() => {
+        if (typeof window === "undefined") return "light";
+        return localStorage.getItem(THEME_KEY) || "light";
+      });
+
+      useEffect(() => {
+        const root = document.documentElement;
+        if (theme === "dark") {
+          root.classList.add("dark");
+        } else {
+          root.classList.remove("dark");
+        }
+        localStorage.setItem(THEME_KEY, theme);
+      }, [theme]);
+
+      const toggleTheme = () =>
+        setTheme((prev) => (prev === "light" ? "dark" : "light"));
+
+      const [role, setRole] = useState("hr");
+      const [candidates, setCandidates] = useState(() => loadInitialCandidates());
+      const [selected, setSelected] = useState(null);
+      const [passId, setPassId] = useState(() => {
+        if (typeof window === "undefined") return null;
+        const params = new URLSearchParams(window.location.search);
+        return params.get("passId");
+      });
+
+      useEffect(() => {
+        saveCandidates(candidates);
+      }, [candidates]);
+
+      const addCandidate = (c) =>
+        setCandidates((prev) => [c, ...prev]);
+
+      const deleteCandidate = (id) =>
+        setCandidates((prev) => prev.filter((c) => c.id !== id));
+
+      const updateCandidate = (updated) =>
+        setCandidates((prev) =>
+          prev.map((c) => (c.id === updated.id ? updated : c))
+        );
+
+      const markArrived = (id) =>
+        setCandidates((prev) =>
+          prev.map((c) =>
+            c.id === id ? { ...c, status: "Arrived" } : c
+          )
+        );
+
+      const markCheckedIn = (id) =>
+        setCandidates((prev) =>
+          prev.map((c) =>
+            c.id === id ? { ...c, status: "Checked In" } : c
+          )
+        );
+
+      const markCompleted = (id) =>
+        setCandidates((prev) =>
+          prev.map((c) =>
+            c.id === id ? { ...c, status: "Completed" } : c
+          )
+        );
+
+      const params = typeof window !== "undefined"
+  ? new URLSearchParams(window.location.search)
+  : null;
+const rawVp = params ? params.get("vp") : null;
+
+let visitorCandidate = null;
+if (rawVp) {
+  try {
+    visitorCandidate = JSON.parse(decodeURIComponent(rawVp));
+  } catch (e) {
+    console.error("Failed to parse visitor payload", e);
+    visitorCandidate = null;
+  }
+} else if (passId) {
+  visitorCandidate =
+    candidates.find((c) => c.id === passId) || null;
+}
+
+if (rawVp || passId) {
+  return (
+    <div className="min-h-screen bg-[#F5F5F5] dark:bg-[#0F1124] text-gray-900 dark:text-gray-100 transition-colors duration-300">
+      <Header
+        role="visitor"
+        setRole={() => {}}
+        theme={theme}
+        toggleTheme={toggleTheme}
+        visitorMode={true}
+      />
+      <div className="flex justify-center p-6">
+        <CandidatePassCard candidate={visitorCandidate} />
+      </div>
+    </div>
+  );
+}
+
+return (
+        <div className="min-h-screen bg-[#F5F5F5] dark:bg-[#0F1124] text-gray-900 dark:text-gray-100 transition-colors duration-300">
+          <Header role={role} setRole={setRole} theme={theme} toggleTheme={toggleTheme} />
+
+          {role === "candidate" && (
+            <CandidateView
+              candidates={candidates}
+              selected={selected}
+              setSelected={setSelected}
+            />
+          )}
+
+          {role === "hr" && (
+            <HRDashboard
+              candidates={candidates}
+              addCandidate={addCandidate}
+              deleteCandidate={deleteCandidate}
+              updateCandidate={updateCandidate}
+              setSelected={setSelected}
+            />
+          )}
+
+          {role === "security" && (
+            <SecurityKiosk
+              candidates={candidates}
+              markArrived={markArrived}
+              markCheckedIn={markCheckedIn}
+              markCompleted={markCompleted}
+            />
+          )}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
