@@ -58,10 +58,10 @@
         <header className="bg-gradient-to-r from-[#281F51] to-[#AB1368] dark:from-[#1B0F2B] dark:to-[#3A1A46] text-white shadow-lg border-b-4 border-[#C3D534]">
           <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <img
+              
                 src="logo.png"
                 alt="Zain Logo"
-                className="h-16 w-16 drop-shadow-md dark:invert dark:brightness-200 transition duration-300"
+                className="h-20 w-28 drop-shadow-md invert brightness-200 transition duration-300"
               />
               <div>
                 <div className="font-bold text-lg">Zain Kuwait</div>
@@ -88,7 +88,13 @@
                   </div>
                 </>
               )}
-              
+              <button
+                onClick={toggleTheme}
+                className="ml-1 p-2 rounded-full text-lg hover:bg-white/15 transition-colors"
+                title={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
+              >
+                {theme === "light" ? "🌙" : "☀️"}
+              </button>
             </div>
           </div>
         </header>
@@ -175,7 +181,7 @@
     function CandidatePassCard({ candidate }) {
       if (!candidate) {
         return (
-          <div className="bg-[#F5F5F5] dark:bg-[#0F1124] transition-colors duration-300 p-6 text-center text-gray-600 dark:text-gray-300">
+          <div className= bg-[#F5F5F5] dark:bg-[#0F1124] transition-colors duration-300"p-6 text-center text-gray-600 dark:text-gray-300">
             No candidate selected.
           </div>
         );
@@ -228,7 +234,7 @@
 
     function CandidateView({ candidates, selected, setSelected }) {
       return (
-        <div className="bg-[#F5F5F5] dark:bg-[#0F1124] transition-colors duration-300 p-6">
+        <div className= bg-[#F5F5F5] dark:bg-[#0F1124] transition-colors duration-300"p-6">
           <h2 className="text-xl font-bold text-[#AB1368]">Candidate Viewer</h2>
 
           {candidates.length === 0 && (
@@ -395,7 +401,7 @@
       };
 
       return (
-        <div className="bg-[#F5F5F5] dark:bg-[#0F1124] transition-colors duration-300 p-6 space-y-4 text-gray-800 dark:text-gray-100">
+        <div className= bg-[#F5F5F5] dark:bg-[#0F1124] transition-colors duration-300"p-6 space-y-4 text-gray-800 dark:text-gray-100">
           <div className="flex flex-col gap-3">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <h2 className="text-xl font-bold text-[#AB1368]">HR Dashboard</h2>
@@ -756,7 +762,7 @@
       }, [candidates, filter]);
 
       return (
-        <div className="bg-[#F5F5F5] dark:bg-[#0F1124] transition-colors duration-300 p-6 space-y-4 text-gray-800 dark:text-gray-100">
+        <div className= bg-[#F5F5F5] dark:bg-[#0F1124] transition-colors duration-300"p-6 space-y-4 text-gray-800 dark:text-gray-100">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <h2 className="text-xl font-bold text-[#AB1368]">Security Kiosk</h2>
             <div className="flex flex-wrap gap-2 text-xs sm:text-sm items-center">
