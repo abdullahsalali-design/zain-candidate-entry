@@ -6,14 +6,7 @@
   <title>Zain Candidate Entry System</title>
 
   <!-- Tailwind + React + Babel -->
-  <script>
-  tailwind = {
-    config: {
-      darkMode: "class",
-    }
-  }
-</script>
-<script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -21,7 +14,7 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 
-<body class="transition-colors duration-300 bg-[#F5F5F5] dark:bg-[#0F1124]">
+<body class="transition-colors duration-300">
   <div id="root"></div>
 
   <script type="text/babel">
@@ -55,13 +48,13 @@
 
     function Header({ role, setRole, theme, toggleTheme, visitorMode = false }) {
       return (
-        <header className="bg-gradient-to-r from-[#281F51] to-[#AB1368] dark:from-[#1B0F2B] dark:to-[#3A1A46] text-white shadow-lg border-b-4 border-[#C3D534]">
+        <header className="bg-gradient-to-r from-[#281F51] to-[#AB1368] text-white shadow-lg border-b-4 border-[#C3D534]">
           <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              
+              <img
                 src="logo.png"
                 alt="Zain Logo"
-                className="h-20 w-28 drop-shadow-md invert brightness-200 transition duration-300"
+                className="h-20 w-28 drop-shadow-md invert brightness-200 transition duration-500 transform hover:scale-105"
               />
               <div>
                 <div className="font-bold text-lg">Zain Kuwait</div>
@@ -88,13 +81,7 @@
                   </div>
                 </>
               )}
-              <button
-                onClick={toggleTheme}
-                className="ml-1 p-2 rounded-full text-lg hover:bg-white/15 transition-colors"
-                title={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
-              >
-                {theme === "light" ? "🌙" : "☀️"}
-              </button>
+              
             </div>
           </div>
         </header>
@@ -144,11 +131,10 @@
       );
     }
 
-    function buildPassUrl(candidate) {
+    function buildPassUrl(candidateId) {
       try {
         const base = window.location.origin + window.location.pathname;
-        const payload = encodeURIComponent(JSON.stringify(candidate));
-        const url = base.replace(/\/+$/, "") + "?vp=" + payload;
+        const url = base.replace(/\/+$/, "") + "?passId=" + encodeURIComponent(candidateId);
         return url;
       } catch {
         return "";
@@ -157,19 +143,19 @@
 
     function CandidateQR({ candidate }) {
       if (!candidate) return null;
-      const passUrl = buildPassUrl(candidate);
+      const passUrl = buildPassUrl(candidate.id);
       const data = encodeURIComponent(passUrl || "");
       const url = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${data}`;
       return (
-        <div className="mt-4 flex flex-col items-center gap-1">
-          <div className="p-2 rounded-2xl bg-white dark:bg-slate-900 shadow border border-[#C3D534]/60">
+        <div className="mt-6 flex flex-col items-center gap-2">
+          <div className="p-3 rounded-2xl bg-white dark:bg-[#1D1A2F] shadow-lg border-2 border-[#AB1368]/80">
             <img
               src={url}
               alt="Candidate QR"
-              className="w-32 h-32 rounded-xl"
+              className="w-36 h-36 rounded-2xl shadow-md"
             />
           </div>
-          <div className="text-[11px] text-gray-600 dark:text-gray-200 text-center">
+          <div className="text-[11px] text-gray-600 dark:text-gray-200 text-center leading-snug">
             Scan to open visitor pass
             <br />
             <span className="font-medium">{candidate.id}</span>
@@ -181,7 +167,7 @@
     function CandidatePassCard({ candidate }) {
       if (!candidate) {
         return (
-          <div className= bg-[#F5F5F5] dark:bg-[#0F1124] transition-colors duration-300"p-6 text-center text-gray-600 dark:text-gray-300">
+          <div className="p-6 text-center text-gray-600 dark:text-gray-300">
             No candidate selected.
           </div>
         );
@@ -234,7 +220,7 @@
 
     function CandidateView({ candidates, selected, setSelected }) {
       return (
-        <div className= bg-[#F5F5F5] dark:bg-[#0F1124] transition-colors duration-300"p-6">
+        <div className="p-6">
           <h2 className="text-xl font-bold text-[#AB1368]">Candidate Viewer</h2>
 
           {candidates.length === 0 && (
@@ -401,7 +387,7 @@
       };
 
       return (
-        <div className= bg-[#F5F5F5] dark:bg-[#0F1124] transition-colors duration-300"p-6 space-y-4 text-gray-800 dark:text-gray-100">
+        <div className="p-6 space-y-4 text-gray-800 dark:text-gray-100">
           <div className="flex flex-col gap-3">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <h2 className="text-xl font-bold text-[#AB1368]">HR Dashboard</h2>
@@ -762,7 +748,7 @@
       }, [candidates, filter]);
 
       return (
-        <div className= bg-[#F5F5F5] dark:bg-[#0F1124] transition-colors duration-300"p-6 space-y-4 text-gray-800 dark:text-gray-100">
+        <div className="p-6 space-y-4 text-gray-800 dark:text-gray-100">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <h2 className="text-xl font-bold text-[#AB1368]">Security Kiosk</h2>
             <div className="flex flex-wrap gap-2 text-xs sm:text-sm items-center">
@@ -900,43 +886,29 @@
           )
         );
 
-      const params = typeof window !== "undefined"
-  ? new URLSearchParams(window.location.search)
-  : null;
-const rawVp = params ? params.get("vp") : null;
+      const visitorCandidate = passId
+        ? candidates.find((c) => c.id === passId)
+        : null;
 
-let visitorCandidate = null;
-if (rawVp) {
-  try {
-    visitorCandidate = JSON.parse(decodeURIComponent(rawVp));
-  } catch (e) {
-    console.error("Failed to parse visitor payload", e);
-    visitorCandidate = null;
-  }
-} else if (passId) {
-  visitorCandidate =
-    candidates.find((c) => c.id === passId) || null;
-}
+      if (passId) {
+        return (
+          <div className="min-h-screen bg-[#FAFAFA] dark:bg-[#0A0A18] text-gray-900 dark:text-gray-100 transition-colors duration-300">
+            <Header
+              role="visitor"
+              setRole={() => {}}
+              theme={theme}
+              toggleTheme={toggleTheme}
+              visitorMode={true}
+            />
+            <div className="flex justify-center p-6">
+              <CandidatePassCard candidate={visitorCandidate} />
+            </div>
+          </div>
+        );
+      }
 
-if (rawVp || passId) {
-  return (
-    <div className="min-h-screen bg-[#F5F5F5] dark:bg-[#0F1124] text-gray-900 dark:text-gray-100 transition-colors duration-300">
-      <Header
-        role="visitor"
-        setRole={() => {}}
-        theme={theme}
-        toggleTheme={toggleTheme}
-        visitorMode={true}
-      />
-      <div className="flex justify-center p-6">
-        <CandidatePassCard candidate={visitorCandidate} />
-      </div>
-    </div>
-  );
-}
-
-return (
-        <div className="min-h-screen bg-[#F5F5F5] dark:bg-[#0F1124] text-gray-900 dark:text-gray-100 transition-colors duration-300">
+      return (
+        <div className="min-h-screen bg-[#FAFAFA] dark:bg-[#0A0A18] text-gray-900 dark:text-gray-100 transition-colors duration-300">
           <Header role={role} setRole={setRole} theme={theme} toggleTheme={toggleTheme} />
 
           {role === "candidate" && (
